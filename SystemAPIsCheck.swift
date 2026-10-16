@@ -3,6 +3,8 @@ import MachO
 
 extension JailbreakCore {
     func checkCallingSystemAPIs() -> [CheckItemResult] {
+        if isBypassed() { return [] }
+        
         var results: [CheckItemResult] = []
         let keywords = ["substrate", "substitute", "hook", "frida", "roothide", "tweaks", "ellekit", "cydia"]
         
