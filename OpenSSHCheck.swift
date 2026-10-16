@@ -3,10 +3,12 @@ import Darwin
 
 extension JailbreakCore {
     func checkOpenSSHService() -> [CheckItemResult] {
+        if isBypassed() { return [] }
+        
         var results: [CheckItemResult] = []
         let ports: [in_port_t] = [22, 44, 2222, 222]
         
-        for port in ports {
+        for port : in_port_t in ports {
             let sock = socket(AF_INET, SOCK_STREAM, 0)
             var isOpen = false
             if sock >= 0 {
