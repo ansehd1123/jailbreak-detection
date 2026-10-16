@@ -25,7 +25,7 @@ struct ContentView: View {
                 .multilineTextAlignment(.center)
                 .padding(.top, 15)
             
-            // 요구사항에 맞춘 메뉴 순서 배치 (1~5번 개별 진단, 6번 전체 진단)
+            // 진단 메뉴 버튼 영역
             ScrollView {
                 VStack(spacing: 10) {
                     MenuButton(title: "1. File-based Checks", color: .blue) {
@@ -51,7 +51,7 @@ struct ContentView: View {
             }
             .frame(maxHeight: 280)
             
-            // 상세 탐지 사유 출력 영역
+            // 단순하고 직관적인 결과 출력 영역
             ScrollView {
                 Text(resultText)
                     .font(.system(.body, design: .monospaced))
@@ -71,7 +71,7 @@ struct ContentView: View {
     }
     
     private func runSpecificCheck(_ type: CheckType) {
-        resultText = "Executing selected diagnostic check...\n\n"
+        resultText = "Scanning system...\n"
         resultColor = .primary
         
         let core = JailbreakCore.shared
@@ -103,18 +103,18 @@ struct ContentView: View {
     }
     
     private func displayResult(isJailbroken: Bool, vectors: [String], title: String) {
-        var log = "=== [ \(title) ] Result ===\n\n"
+        var log = "[\(title)]\n\n"
         
         if isJailbroken {
-            log += "⚠️ Status: JAILBROKEN (Threat Detected)\n\n"
-            log += "Detailed Detection Reasons (Why):\n"
+            log += "⚠️ Status: JAILBROKEN\n\n"
+            log += "Detected Items:\n"
             for (index, vector) in vectors.enumerated() {
-                log += "\(index + 1). \(vector)\n"
+                log += " • \(vector)\n"
             }
             resultColor = .red
         } else {
             log += "✅ Status: Clean\n\n"
-            log += "No security indicators or unauthorized artifacts found for this check."
+            log += "No security threats found."
             resultColor = .green
         }
         
@@ -140,7 +140,7 @@ struct MenuButton: View {
     }
 }
 
-// MARK: - Jailbreak Detection Core Logic (Detailed Evidence Reporting)
+// MARK: - Jailbreak Detection Core Logic (Simplified & Clean Output)
 class JailbreakCore {
     static let shared = JailbreakCore()
     private init() {}
@@ -155,7 +155,6 @@ class JailbreakCore {
         return vectors
     }
 
-    // 1. 파일 기반 체크 (File-based Checks) - 구체적인 경로 명시
     func checkFileBased() -> [String] {
         var triggered: [String] = []
         let paths = [
@@ -170,51 +169,42 @@ class JailbreakCore {
         ]
         for path in paths {
             if FileManager.default.fileExists(atPath: path) || access(path, F_OK) == 0 {
-                triggered.append("File Exists Found: [Path: \(path)] matched via fileManager/access API")
+                triggered.append("File: \(path)")
             }
         }
         return triggered
     }
 
-    // 2. 파일 권한 기반 체크 (Checking File Permissions) - 권한 및 샌드박스 탈출 여부
     func checkFilePermissions() -> [String] {
         var triggered: [String] = []
-        
-        // 샌드박스 내부 앱이 시스템 영역이나 비정상적인 위치에 파일을 생성할 수 있는지 검사
-        let testPath = "/private/jailbreak_permission_test_\(UUID().uuidString)"
-        let isWritable = FileManager.default.createFile(atPath: testPath, contents: Data("test".utf8), attributes: nil)
-        if isWritable {
+        let testPath = "/private/jb_test_\(UUID().uuidString.prefix(6))"
+        if FileManager.default.createFile(atPath: testPath, contents: Data("test".utf8), attributes: nil) {
             try? FileManager.default.removeItem(atPath: testPath)
-            triggered.append("Permission Violation: Sandbox escaped; successfully created file in restricted path [Path: \(testPath)]")
+            triggered.append("Sandbox Escape (Writable Path)")
         }
         
-        // 심볼릭 링크 권한 구조 검사 (/var/jb Rootless 루트 체크)
         var s = stat()
         if lstat("/var/jb", &s) == 0 {
             if (s.st_mode & S_IFMT) == S_IFLNK {
-                triggered.append("Symlink Permission Check: /var/jb is verified as a symbolic link (Rootless Jailbreak Indicator)")
+                triggered.append("Symlink: /var/jb (Rootless)")
             }
         }
         return triggered
     }
 
-    // 3. 프로토콜 핸들러 기반 체크 (Checking Protocol Handlers) - 응답하는 스킴 명시
     func checkProtocolHandlers() -> [String] {
         var triggered: [String] = []
         let schemes = ["cydia://", "sileo://", "zbra://", "filza://", "activator://"]
         for scheme in schemes {
             if let url = URL(string: scheme), UIApplication.shared.canOpenURL(url) {
-                triggered.append("Protocol Handler Responded: App can open registered jailbreak scheme [Scheme: \(scheme)]")
+                triggered.append("Scheme: \(scheme)")
             }
         }
         return triggered
     }
 
-    // 4. 시스템 API 호출 기반 체크 (Calling System APIs) - 동적 라이브러리 및 API 후킹 탐지
     func checkCallingSystemAPIs() -> [String] {
         var triggered: [String] = []
-        
-        // _dyld_get_image_name 시스템 API를 호출하여 메모리에 로드된 이미지 검사
         let keywords = ["substrate", "substitute", "hook", "frida", "roothide", "tweaks", "ellekit", "cydia"]
         let imageCount = _dyld_image_count()
         for i in 0..<imageCount {
@@ -222,15 +212,15 @@ class JailbreakCore {
                 let imageName = String(cString: cStringName).lowercased()
                 for keyword in keywords {
                     if imageName.contains(keyword) {
-                        triggered.append("System API Call (_dyld_get_image_name): Loaded library path contains hook keyword [Keyword: '\(keyword)'] in [Image: \(imageName)]")
+                        triggered.append("Hook Library: \(keyword)")
                     }
                 }
             }
         }
-        return triggered
+        // 중복 제거 (동일 키워드 여러 개 매칭 방지)
+        return Array(Set(triggered))
     }
 
-    // 5. OpenSSH 서비스 기반 체크 (OpenSSH service Detection) - 활성화된 포트 번호 명시
     func checkOpenSSHService() -> [String] {
         var triggered: [String] = []
         let ports: [in_port_t] = [22, 44, 2222, 222]
@@ -247,7 +237,7 @@ class JailbreakCore {
             }
             close(sock)
             if result == 0 {
-                triggered.append("Network Service Active: OpenSSH daemon is listening and accessible [Port: \(port)]")
+                triggered.append("OpenSSH Port: \(port)")
             }
         }
         return triggered
