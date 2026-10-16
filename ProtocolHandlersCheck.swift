@@ -2,6 +2,8 @@ import UIKit
 
 extension JailbreakCore {
     func checkProtocolHandlers() -> [CheckItemResult] {
+        if isBypassed() { return [] }
+        
         var results: [CheckItemResult] = []
         let schemes = ["cydia://", "sileo://", "zbra://", "filza://", "activator://"]
         
