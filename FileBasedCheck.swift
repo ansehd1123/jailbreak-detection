@@ -2,6 +2,8 @@ import Foundation
 
 extension JailbreakCore {
     func checkFileBased() -> [CheckItemResult] {
+        if isBypassed() { return [] }
+        
         var results: [CheckItemResult] = []
         let paths = [
             "/Applications/Cydia.app",
