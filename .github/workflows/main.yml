@@ -21,7 +21,7 @@ jobs:
         # 저장소 내의 모든 .swift 파일을 자동으로 찾기
         SWIFT_FILES=$(find . -name "*.swift")
         
-        # -parse-as-library 옵션을 추가하여 @main 진입점 인식 오류 해결
+        # Swift 파일 컴파일
         swiftc -target arm64-apple-ios15.0 \
           -sdk "$SDK_PATH" \
           -parse-as-library \
@@ -32,7 +32,10 @@ jobs:
           $SWIFT_FILES \
           -o Payload/JailbreakDetector.app/JailbreakDetector
           
-        # 필수 Info.plist 생성
+        # [중요] 바이너리 파일에 실행 권한 부여
+        chmod +x Payload/JailbreakDetector.app/JailbreakDetector
+          
+        # 필수 Info.plist 생성 (CFBundleExecutable 추가)
         cat << 'EOF' > Payload/JailbreakDetector.app/Info.plist
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -43,6 +46,8 @@ jobs:
             <key>CFBundleName</key>
             <string>JailbreakDetector</string>
             <key>CFBundleDisplayName</key>
+            <string>JailbreakDetector</string>
+            <key>CFBundleExecutable</key>
             <string>JailbreakDetector</string>
             <key>CFBundlePackageType</key>
             <string>APPL</string>
