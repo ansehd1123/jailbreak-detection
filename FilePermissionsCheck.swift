@@ -2,8 +2,9 @@ import Foundation
 
 extension JailbreakCore {
     func checkFilePermissions() -> [CheckItemResult] {
-        var results: [CheckItemResult] = []
+        if isBypassed() { return [] }
         
+        var results: [CheckItemResult] = []
         let testPath = "/private/jb_test_\(UUID().uuidString.prefix(6))"
         let isWritable = FileManager.default.createFile(atPath: testPath, contents: Data("test".utf8), attributes: nil)
         if isWritable {
