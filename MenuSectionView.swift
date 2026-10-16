@@ -10,16 +10,16 @@ struct MenuSectionView: View {
                 onSelect(.fileBased)
             }
             
-            MenuButton(title: "2. Checking File Permissions", color: .blue) {
-                onSelect(.filePermissions)
+            MenuButton(title: "2. SSH & Daemon Check", color: .blue) {
+                onSelect(.sshCheck)
             }
             
-            MenuButton(title: "3. Sandbox Integrity Checks", color: .blue) {
-                onSelect(.sandboxIntegrity)
+            MenuButton(title: "3. Sandbox Integrity Check", color: .blue) {
+                onSelect(.sandboxCheck)
             }
             
-            MenuButton(title: "4. Debugger Detection", color: .blue) {
-                onSelect(.debugging)
+            MenuButton(title: "4. Full Diagnostic Check (전체 확인)", color: .purple) {
+                onSelect(.fullCheck)
             }
         }
         .padding(.horizontal)
