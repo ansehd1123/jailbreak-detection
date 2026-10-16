@@ -14,28 +14,44 @@ struct JailbreakApp: App {
 }
 
 struct ContentView: View {
-    @State private var resultText: String = "버튼을 눌러 탈옥 검사를 시작하세요."
+    @State private var resultText: String = "Select a diagnostic check option below."
     @State private var resultColor: Color = .primary
     
     var body: some View {
-        VStack(spacing: 30) {
-            Text("Advanced Jailbreak Detector")
+        VStack(spacing: 20) {
+            Text("Advanced Jailbreak Inspector")
                 .font(.title2)
                 .fontWeight(.bold)
                 .multilineTextAlignment(.center)
-                .padding(.top, 40)
+                .padding(.top, 20)
             
-            Button(action: runScan) {
-                Text("Run Deep Scan")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .cornerRadius(10)
+            // 메뉴별 개별 검사 버튼 영역
+            ScrollView {
+                VStack(spacing: 10) {
+                    MenuButton(title: "1. Run All Checks (Batch)", color: .purple) {
+                        runSpecificCheck(.all)
+                    }
+                    MenuButton(title: "2. Check File-Based Artifacts", color: .blue) {
+                        runSpecificCheck(.fileBased)
+                    }
+                    MenuButton(title: "3. Check URL Schemes", color: .blue) {
+                        runSpecificCheck(.protocolHandlers)
+                    }
+                    MenuButton(title: "4. Check OpenSSH Services", color: .blue) {
+                        runSpecificCheck(.openSSH)
+                    }
+                    MenuButton(title: "5. Check DYLD Images (Hooks)", color: .blue) {
+                        runSpecificCheck(.dyldImages)
+                    }
+                    MenuButton(title: "6. Check Symbolic Links (/var/jb)", color: .blue) {
+                        runSpecificCheck(.symlinks)
+                    }
+                }
+                .padding(.horizontal, 20)
             }
-            .padding(.horizontal, 30)
+            .frame(maxHeight: 260)
             
+            // 결과 출력 영역
             ScrollView {
                 Text(resultText)
                     .font(.system(.body, design: .monospaced))
@@ -50,23 +66,56 @@ struct ContentView: View {
         }
     }
     
-    private func runScan() {
-        resultText = "시스템 환경을 정밀 진단 중입니다...\n\n"
+    enum CheckType {
+        case all, fileBased, protocolHandlers, openSSH, dyldImages, symlinks
+    }
+    
+    private func runSpecificCheck(_ type: CheckType) {
+        resultText = "Executing selected diagnostic check...\n\n"
         resultColor = .primary
         
-        let scanResult = JailbreakCore.shared.runAllChecks()
-        var log = "=== 진단 완료 ===\n\n"
+        let core = JailbreakCore.shared
+        var triggeredVectors: [String] = []
+        let checkName: String
         
-        if scanResult.isJailbroken {
-            log += "⚠️ 상태: 탈옥 감지됨 (JAILBROKEN)\n\n"
-            log += "탐지된 항목:\n"
-            for (index, vector) in scanResult.triggeredVectors.enumerated() {
+        switch type {
+        case .all:
+            let result = core.runAllChecks()
+            displayResult(isJailbroken: result.isJailbroken, vectors: result.triggeredVectors, title: "All Checks Combined")
+            return
+        case .fileBased:
+            checkName = "File-Based Artifacts Check"
+            if core.checkFileBased() { triggeredVectors.append("File System: Jailbreak files/paths detected") }
+        case .protocolHandlers:
+            checkName = "URL Schemes Check"
+            if core.checkProtocolHandlers() { triggeredVectors.append("URL Scheme: Jailbreak app schemes responded") }
+        case .openSSH:
+            checkName = "OpenSSH Service Check"
+            if core.checkOpenSSHService() { triggeredVectors.append("Network: OpenSSH ports (22/44/2222) active") }
+        case .dyldImages:
+            checkName = "DYLD Loaded Images Check"
+            if core.checkDyldImages() { triggeredVectors.append("Memory: Hooking framework libraries loaded") }
+        case .symlinks:
+            checkName = "Symbolic Links Check"
+            if core.checkSymlinks() { triggeredVectors.append("File System: Abnormal symbolic link (/var/jb) detected") }
+        }
+        
+        displayResult(isJailbroken: !triggeredVectors.isEmpty, vectors: triggeredVectors, title: checkName)
+    }
+    
+    private func displayResult(isJailbroken: Bool, vectors: [String], title: String) {
+        var log = "=== [ \(title) ] Result ===\n\n"
+        
+        if isJailbroken {
+            log += "⚠️ Status: JAILBROKEN\n\n"
+            log += "Triggered Vectors:\n"
+            for (index, vector) in vectors.enumerated() {
                 log += "\(index + 1). \(vector)\n"
             }
             resultColor = .red
         } else {
-            log += "✅ 상태: 안전함 (Clean)\n\n"
-            log += "탈옥 흔적이 발견되지 않았습니다."
+            log += "✅ Status: Clean\n\n"
+            log += "No security indicators found for this check."
             resultColor = .green
         }
         
@@ -74,35 +123,56 @@ struct ContentView: View {
     }
 }
 
-// MARK: - 탈옥 탐지 코어 로직
-struct JailbreakCheckResult {
-    let isJailbroken: Bool
-    let triggeredVectors: [String]
+struct MenuButton: View {
+    let title: String
+    let color: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(color)
+                .cornerRadius(8)
+        }
+    }
 }
 
+// MARK: - Jailbreak Detection Core Logic (Modularized & English Strings)
 class JailbreakCore {
     static let shared = JailbreakCore()
     private init() {}
 
-    func runAllChecks() -> JailbreakCheckResult {
+    func runAllChecks() -> (isJailbroken: Bool, triggeredVectors: [String]) {
         var vectors: [String] = []
-        if checkFileBased() { vectors.append("파일 시스템: 탈옥 관련 파일/경로 감지") }
-        if checkProtocolHandlers() { vectors.append("URL Scheme: 탈옥 앱 스킴 응답 감지") }
-        if checkOpenSSHService() { vectors.append("네트워크: OpenSSH 포트(22/44/2222) 활성화 감지") }
-        if checkDyldImages() { vectors.append("메모리: 후킹 프레임워크 라이브러리 로드 감지") }
-        if checkSymlinks() { vectors.append("파일 시스템: 비정상적인 심볼릭 링크(/var/jb) 감지") }
-        return JailbreakCheckResult(isJailbroken: !vectors.isEmpty, triggeredVectors: vectors)
+        if checkFileBased() { vectors.append("File System: Jailbreak files/paths detected") }
+        if checkProtocolHandlers() { vectors.append("URL Scheme: Jailbreak app schemes responded") }
+        if checkOpenSSHService() { vectors.append("Network: OpenSSH ports (22/44/2222) active") }
+        if checkDyldImages() { vectors.append("Memory: Hooking framework libraries loaded") }
+        if checkSymlinks() { vectors.append("File System: Abnormal symbolic link (/var/jb) detected") }
+        return (isJailbroken: !vectors.isEmpty, triggeredVectors: vectors)
     }
 
-    private func checkFileBased() -> Bool {
-        let paths = ["/Applications/Cydia.app", "/Applications/Sileo.app", "/Library/MobileSubstrate/MobileSubstrate.dylib", "/bin/bash", "/usr/sbin/sshd", "/var/jb/usr/bin/bash", "/var/jb/Applications/Sileo.app"]
+    func checkFileBased() -> Bool {
+        let paths = [
+            "/Applications/Cydia.app",
+            "/Applications/Sileo.app",
+            "/Library/MobileSubstrate/MobileSubstrate.dylib",
+            "/bin/bash",
+            "/usr/sbin/sshd",
+            "/var/jb/usr/bin/bash",
+            "/var/jb/Applications/Sileo.app"
+        ]
         for path in paths {
             if FileManager.default.fileExists(atPath: path) || access(path, F_OK) == 0 { return true }
         }
         return false
     }
 
-    private func checkProtocolHandlers() -> Bool {
+    func checkProtocolHandlers() -> Bool {
         let schemes = ["cydia://", "sileo://", "zbra://", "filza://"]
         for scheme in schemes {
             if let url = URL(string: scheme), UIApplication.shared.canOpenURL(url) { return true }
@@ -110,7 +180,7 @@ class JailbreakCore {
         return false
     }
 
-    private func checkOpenSSHService() -> Bool {
+    func checkOpenSSHService() -> Bool {
         let ports: [in_port_t] = [22, 44, 2222]
         for port in ports {
             let sock = socket(AF_INET, SOCK_STREAM, 0)
@@ -129,7 +199,7 @@ class JailbreakCore {
         return false
     }
 
-    private func checkDyldImages() -> Bool {
+    func checkDyldImages() -> Bool {
         let keywords = ["substrate", "substitute", "hook", "frida", "roothide", "tweaks", "ellekit"]
         let imageCount = _dyld_image_count()
         for i in 0..<imageCount {
@@ -141,9 +211,11 @@ class JailbreakCore {
         return false
     }
 
-    private func checkSymlinks() -> Bool {
+    func checkSymlinks() -> Bool {
         var s = stat()
-        if lstat("/var/jb", &s) == 0 { if (s.st_mode & S_IFMT) == S_IFLNK { return true } }
+        if lstat("/var/jb", &s) == 0 {
+            if (s.st_mode & S_IFMT) == S_IFLNK { return true }
+        }
         return false
     }
 }
