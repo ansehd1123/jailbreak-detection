@@ -14,7 +14,7 @@ struct JailbreakApp: App {
 }
 
 struct ContentView: View {
-    @State private var resultText: String = "Select a diagnostic check option below."
+    @State private var resultText: String = "Select a diagnostic check option below to view blacklist items and status."
     @State private var resultColor: Color = .primary
     
     var body: some View {
@@ -25,7 +25,7 @@ struct ContentView: View {
                 .multilineTextAlignment(.center)
                 .padding(.top, 15)
             
-            // 진단 메뉴 버튼 영역
+            // 진단 메뉴 버튼 영역 (요청하신 순서 및 6번 전체 체크)
             ScrollView {
                 VStack(spacing: 10) {
                     MenuButton(title: "1. File-based Checks", color: .blue) {
@@ -51,7 +51,7 @@ struct ContentView: View {
             }
             .frame(maxHeight: 280)
             
-            // 단순하고 직관적인 결과 출력 영역
+            // 상세 진단 결과 및 블랙리스트 대조 리스트 출력 영역
             ScrollView {
                 Text(resultText)
                     .font(.system(.body, design: .monospaced))
@@ -70,52 +70,63 @@ struct ContentView: View {
         case fileBased, filePermissions, protocolHandlers, systemAPIs, openSSH, all
     }
     
+    struct CheckItemResult {
+        let name: String
+        let isDetected: Bool
+        let description: String
+    }
+    
     private func runSpecificCheck(_ type: CheckType) {
-        resultText = "Scanning system...\n"
+        resultText = "Analyzing system against criteria...\n"
         resultColor = .primary
         
         let core = JailbreakCore.shared
-        var triggeredVectors: [String] = []
+        var results: [CheckItemResult] = []
         let checkName: String
         
         switch type {
         case .fileBased:
             checkName = "1. File-based Checks"
-            triggeredVectors = core.checkFileBased()
+            results = core.checkFileBased()
         case .filePermissions:
             checkName = "2. Checking File Permissions"
-            triggeredVectors = core.checkFilePermissions()
+            results = core.checkFilePermissions()
         case .protocolHandlers:
             checkName = "3. Checking Protocol Handlers"
-            triggeredVectors = core.checkProtocolHandlers()
+            results = core.checkProtocolHandlers()
         case .systemAPIs:
             checkName = "4. Calling System APIs"
-            triggeredVectors = core.checkCallingSystemAPIs()
+            results = core.checkCallingSystemAPIs()
         case .openSSH:
             checkName = "5. OpenSSH service Detection"
-            triggeredVectors = core.checkOpenSSHService()
+            results = core.checkOpenSSHService()
         case .all:
             checkName = "6. Run All Checks (Batch)"
-            triggeredVectors = core.runAllChecks()
+            results = core.runAllChecks()
         }
         
-        displayResult(isJailbroken: !triggeredVectors.isEmpty, vectors: triggeredVectors, title: checkName)
+        let hasThreat = results.contains { $0.isDetected }
+        displayResult(isJailbroken: hasThreat, items: results, title: checkName)
     }
     
-    private func displayResult(isJailbroken: Bool, vectors: [String], title: String) {
+    private func displayResult(isJailbroken: Bool, items: [CheckItemResult], title: String) {
         var log = "[\(title)]\n\n"
         
         if isJailbroken {
-            log += "⚠️ Status: JAILBROKEN\n\n"
-            log += "Detected Items:\n"
-            for (index, vector) in vectors.enumerated() {
-                log += " • \(vector)\n"
-            }
+            log += "⚠️ Status: JAILBROKEN (Threat Found)\n\n"
             resultColor = .red
         } else {
-            log += "✅ Status: Clean\n\n"
-            log += "No security threats found."
+            log += "✅ Status: Clean (All Safe)\n\n"
             resultColor = .green
+        }
+        
+        log += "Blacklist / Criteria Evaluation:\n"
+        for item in items {
+            let badge = item.isDetected ? "[⚠️ DETECTED]" : "[✅ CLEAN]"
+            log += " \(badge) \(item.name)\n"
+            if !item.description.isEmpty {
+                log += "    └─ \(item.description)\n"
+            }
         }
         
         resultText = log
@@ -140,23 +151,24 @@ struct MenuButton: View {
     }
 }
 
-// MARK: - Jailbreak Detection Core Logic (Simplified & Clean Output)
+// MARK: - Jailbreak Detection Core Logic with Blacklist Criteria Return
 class JailbreakCore {
     static let shared = JailbreakCore()
     private init() {}
 
-    func runAllChecks() -> [String] {
-        var vectors: [String] = []
-        vectors.append(contentsOf: checkFileBased())
-        vectors.append(contentsOf: checkFilePermissions())
-        vectors.append(contentsOf: checkProtocolHandlers())
-        vectors.append(contentsOf: checkCallingSystemAPIs())
-        vectors.append(contentsOf: checkOpenSSHService())
-        return vectors
+    func runAllChecks() -> [ContentView.CheckItemResult] {
+        var allItems: [ContentView.CheckItemResult] = []
+        allItems.append(contentsOf: checkFileBased())
+        allItems.append(contentsOf: checkFilePermissions())
+        allItems.append(contentsOf: checkProtocolHandlers())
+        allItems.append(contentsOf: checkCallingSystemAPIs())
+        allItems.append(contentsOf: checkOpenSSHService())
+        return allItems
     }
 
-    func checkFileBased() -> [String] {
-        var triggered: [String] = []
+    // 1. 파일 기반 체크 (블랙리스트 경로 대조)
+    func checkFileBased() -> [ContentView.CheckItemResult] {
+        var results: [ContentView.CheckItemResult] = []
         let paths = [
             "/Applications/Cydia.app",
             "/Applications/Sileo.app",
@@ -167,79 +179,119 @@ class JailbreakCore {
             "/var/jb/Applications/Sileo.app",
             "/etc/apt"
         ]
-        for path in paths {
-            if FileManager.default.fileExists(atPath: path) || access(path, F_OK) == 0 {
-                triggered.append("File: \(path)")
-            }
-        }
-        return triggered
-    }
-
-    func checkFilePermissions() -> [String] {
-        var triggered: [String] = []
-        let testPath = "/private/jb_test_\(UUID().uuidString.prefix(6))"
-        if FileManager.default.createFile(atPath: testPath, contents: Data("test".utf8), attributes: nil) {
-            try? FileManager.default.removeItem(atPath: testPath)
-            triggered.append("Sandbox Escape (Writable Path)")
-        }
         
+        for path in paths {
+            let exists = FileManager.default.fileExists(atPath: path) || access(path, F_OK) == 0
+            results.append(ContentView.CheckItemResult(
+                name: path,
+                isDetected: exists,
+                description: exists ? "Blacklist artifact found on disk" : "Not found"
+            ))
+        }
+        return results
+    }
+
+    // 2. 파일 권한 및 샌드박스 체크 (행위 기반 블랙리스트)
+    func checkFilePermissions() -> [ContentView.CheckItemResult] {
+        var results: [ContentView.CheckItemResult] = []
+        
+        // 샌드박스 탈출 쓰기 테스트
+        let testPath = "/private/jb_test_\(UUID().uuidString.prefix(6))"
+        let isWritable = FileManager.default.createFile(atPath: testPath, contents: Data("test".utf8), attributes: nil)
+        if isWritable {
+            try? FileManager.default.removeItem(atPath: testPath)
+        }
+        results.append(ContentView.CheckItemResult(
+            name: "Sandbox Write Escape Test",
+            isDetected: isWritable,
+            description: isWritable ? "Successfully wrote to restricted private path" : "Blocked by sandbox (Normal)"
+        ))
+        
+        // 루트리스 심볼릭 링크 체크
         var s = stat()
-        if lstat("/var/jb", &s) == 0 {
-            if (s.st_mode & S_IFMT) == S_IFLNK {
-                triggered.append("Symlink: /var/jb (Rootless)")
-            }
-        }
-        return triggered
+        let isSymlink = (lstat("/var/jb", &s) == 0) && ((s.st_mode & S_IFMT) == S_IFLNK)
+        results.append(ContentView.CheckItemResult(
+            name: "Symlink Check (/var/jb)",
+            isDetected: isSymlink,
+            description: isSymlink ? "/var/jb is a symbolic link (Rootless jailbreak)" : "Clean or does not exist"
+        ))
+        
+        return results
     }
 
-    func checkProtocolHandlers() -> [String] {
-        var triggered: [String] = []
+    // 3. 프로토콜 핸들러 체크 (URL 스킴 블랙리스트 대조)
+    func checkProtocolHandlers() -> [ContentView.CheckItemResult] {
+        var results: [ContentView.CheckItemResult] = []
         let schemes = ["cydia://", "sileo://", "zbra://", "filza://", "activator://"]
+        
         for scheme in schemes {
-            if let url = URL(string: scheme), UIApplication.shared.canOpenURL(url) {
-                triggered.append("Scheme: \(scheme)")
-            }
+            let canOpen = if let url = URL(string: scheme) { UIApplication.shared.canOpenURL(url) } else { false }
+            results.append(ContentView.CheckItemResult(
+                name: scheme,
+                isDetected: canOpen,
+                description: canOpen ? "Registered app responded to URL scheme" : "Not registered"
+            ))
         }
-        return triggered
+        return results
     }
 
-    func checkCallingSystemAPIs() -> [String] {
-        var triggered: [String] = []
+    // 4. 시스템 API / 동적 라이브러리 후킹 키워드 블랙리스트 대조
+    func checkCallingSystemAPIs() -> [ContentView.CheckItemResult] {
+        var results: [ContentView.CheckItemResult] = []
         let keywords = ["substrate", "substitute", "hook", "frida", "roothide", "tweaks", "ellekit", "cydia"]
+        
+        // 메모리에 로드된 전체 이미지 수집
+        var foundKeywords: Set<String> = []
         let imageCount = _dyld_image_count()
         for i in 0..<imageCount {
             if let cStringName = _dyld_get_image_name(i) {
                 let imageName = String(cString: cStringName).lowercased()
                 for keyword in keywords {
                     if imageName.contains(keyword) {
-                        triggered.append("Hook Library: \(keyword)")
+                        foundKeywords.insert(keyword)
                     }
                 }
             }
         }
-        // 중복 제거 (동일 키워드 여러 개 매칭 방지)
-        return Array(Set(triggered))
+        
+        for keyword in keywords {
+            let matched = foundKeywords.contains(keyword)
+            results.append(ContentView.CheckItemResult(
+                name: "Keyword: [\(keyword)]",
+                isDetected: matched,
+                description: matched ? "Matched inside loaded dynamic libraries" : "Not detected in memory"
+            ))
+        }
+        return results
     }
 
-    func checkOpenSSHService() -> [String] {
-        var triggered: [String] = []
+    // 5. OpenSSH 서비스 포트 블랙리스트 대조
+    func checkOpenSSHService() -> [ContentView.CheckItemResult] {
+        var results: [ContentView.CheckItemResult] = []
         let ports: [in_port_t] = [22, 44, 2222, 222]
+        
         for port in ports {
             let sock = socket(AF_INET, SOCK_STREAM, 0)
-            if sock < 0 { continue }
-            var addr = sockaddr_in()
-            addr.sin_len = __uint8_t(MemoryLayout<sockaddr_in>.size)
-            addr.sin_family = sa_family_t(AF_INET)
-            addr.sin_port = port.bigEndian
-            addr.sin_addr.s_addr = inet_addr("127.0.0.1")
-            let result = withUnsafePointer(to: &addr) {
-                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(sock, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+            var isOpen = false
+            if sock >= 0 {
+                var addr = sockaddr_in()
+                addr.sin_len = __uint8_t(MemoryLayout<sockaddr_in>.size)
+                addr.sin_family = sa_family_t(AF_INET)
+                addr.sin_port = port.bigEndian
+                addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+                let connectResult = withUnsafePointer(to: &addr) {
+                    $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(sock, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+                }
+                close(sock)
+                isOpen = (connectResult == 0)
             }
-            close(sock)
-            if result == 0 {
-                triggered.append("OpenSSH Port: \(port)")
-            }
+            
+            results.append(ContentView.CheckItemResult(
+                name: "Port \(port)",
+                isDetected: isOpen,
+                description: isOpen ? "Daemon service is listening locally" : "Port closed / unreachable"
+            ))
         }
-        return triggered
+        return results
     }
 }
