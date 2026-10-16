@@ -1,0 +1,68 @@
+name: Build IPA directly with Swiftc
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - name: 소스코드 가져오기
+      uses: actions/checkout@v4
+
+    - name: iOS 앱 직접 컴파일 및 IPA 패키징
+      run: |
+        mkdir -p Payload/JailbreakDetector.app
+        
+        # iOS SDK 경로 가져오기
+        SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+        
+        # 저장소 내의 모든 .swift 파일을 자동으로 찾아서 컴파일
+        SWIFT_FILES=$(find . -name "*.swift")
+        
+        swiftc -target arm64-apple-ios15.0 \
+          -sdk "$SDK_PATH" \
+          -framework UIKit \
+          -framework SwiftUI \
+          -framework Foundation \
+          -framework Network \
+          $SWIFT_FILES \
+          -o Payload/JailbreakDetector.app/JailbreakDetector
+          
+        # 필수 Info.plist 생성
+        cat << 'EOF' > Payload/JailbreakDetector.app/Info.plist
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>CFBundleIdentifier</key>
+            <string>com.security.jailbreakdetector</string>
+            <key>CFBundleName</key>
+            <string>JailbreakDetector</string>
+            <key>CFBundleDisplayName</key>
+            <string>JailbreakDetector</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0</string>
+            <key>CFBundleVersion</key>
+            <string>1</string>
+            <key>MinimumOSVersion</key>
+            <string>15.0</string>
+            <key>UIDeviceFamily</key>
+            <array>
+                <integer>1</integer>
+            </array>
+        </dict>
+        </plist>
+        EOF
+        
+        # IPA 파일로 압축
+        zip -r JailbreakDetector.ipa Payload
+
+    - name: 완성된 IPA 업로드
+      uses: actions/upload-artifact@v4
+      with:
+        name: JailbreakDetector-IPA
+        path: JailbreakDetector.ipa
