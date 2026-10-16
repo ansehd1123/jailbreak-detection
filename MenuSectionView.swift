@@ -1,32 +1,29 @@
 import SwiftUI
 
 struct MenuSectionView: View {
-    // ContentView에 정의된 CheckType을 참조
-    let onSelect: (ContentView.CheckType) -> Void
+    let action1: () -> Void
+    let action2: () -> Void
+    let action3: () -> Void
+    let action4: () -> Void
+    let action5: () -> Void
+    let action6: () -> Void
     
     var body: some View {
-        VStack(spacing: 12) {
-            MenuButton(title: "1. File-based Checks", color: .blue) {
-                onSelect(.fileBased)
+        ScrollView {
+            VStack(spacing: 10) {
+                MenuButton(title: "1. File-based Checks", color: .blue, action: action1)
+                MenuButton(title: "2. Checking File Permissions", color: .blue, action: action2)
+                MenuButton(title: "3. Checking Protocol Handlers", color: .blue, action: action3)
+                MenuButton(title: "4. Calling System APIs", color: .blue, action: action4)
+                MenuButton(title: "5. OpenSSH service Detection", color: .blue, action: action5)
+                MenuButton(title: "6. Run All Checks (Batch)", color: .purple, action: action6)
             }
-            
-            MenuButton(title: "2. SSH & Daemon Check", color: .blue) {
-                onSelect(.sshCheck)
-            }
-            
-            MenuButton(title: "3. Sandbox Integrity Check", color: .blue) {
-                onSelect(.sandboxCheck)
-            }
-            
-            MenuButton(title: "4. Full Diagnostic Check (전체 확인)", color: .purple) {
-                onSelect(.fullCheck)
-            }
+            .padding(.horizontal, 20)
         }
-        .padding(.horizontal)
+        .frame(maxHeight: 280)
     }
 }
 
-/// 재사용 가능한 메뉴 버튼 컴포넌트
 struct MenuButton: View {
     let title: String
     let color: Color
@@ -36,12 +33,11 @@ struct MenuButton: View {
         Button(action: action) {
             Text(title)
                 .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(color)
                 .foregroundColor(.white)
-                .cornerRadius(10)
-                .shadow(radius: 2)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(color)
+                .cornerRadius(8)
         }
     }
 }
