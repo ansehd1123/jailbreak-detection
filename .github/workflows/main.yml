@@ -18,11 +18,13 @@ jobs:
         # iOS SDK 경로 가져오기
         SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
         
-        # 저장소 내의 모든 .swift 파일을 자동으로 찾아서 컴파일
+        # 저장소 내의 모든 .swift 파일을 자동으로 찾기
         SWIFT_FILES=$(find . -name "*.swift")
         
+        # -parse-as-library 옵션을 추가하여 @main 진입점 인식 오류 해결
         swiftc -target arm64-apple-ios15.0 \
           -sdk "$SDK_PATH" \
+          -parse-as-library \
           -framework UIKit \
           -framework SwiftUI \
           -framework Foundation \
