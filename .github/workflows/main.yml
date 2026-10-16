@@ -11,11 +11,14 @@ jobs:
     - name: 소스코드 가져오기
       uses: actions/checkout@v4
 
-    - name: 앱 아이콘 자동 생성 및 리사이징
+    - name: 앱 아이콘 적용 및 컴파일 후 IPA 패키징
       run: |
+        # 1. 앱 번들 폴더를 먼저 생성합니다.
+        mkdir -p Payload/JailbreakDetector.app
+        
+        # 2. icon.png가 존재하면 iOS 규격에 맞게 리사이징하여 앱 폴더에 넣습니다.
         if [ -f "icon.png" ]; then
           echo "Found icon.png, resizing for iOS..."
-          # macOS 기본 툴(sips)을 이용해 iOS 필수 아이콘 규격으로 자동 변환
           sips -z 120 120 icon.png --out Payload/JailbreakDetector.app/Icon-60@2x.png
           sips -z 180 180 icon.png --out Payload/JailbreakDetector.app/Icon-60@3x.png
           sips -z 76 76 icon.png --out Payload/JailbreakDetector.app/Icon-76.png
@@ -23,18 +26,14 @@ jobs:
         else
           echo "Warning: icon.png not found, skipping icon generation."
         fi
-
-    - name: iOS 앱 직접 컴파일 및 IPA 패키징
-      run: |
-        mkdir -p Payload/JailbreakDetector.app
         
-        # iOS SDK 경로 가져오기
+        # 3. iOS SDK 경로 가져오기
         SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
         
-        # 저장소 내의 모든 .swift 파일을 자동으로 찾기
+        # 4. 저장소 내의 모든 .swift 파일 찾기
         SWIFT_FILES=$(find . -name "*.swift")
         
-        # Swift 파일 컴파일
+        # 5. Swift 파일 컴파일
         swiftc -target arm64-apple-ios15.0 \
           -sdk "$SDK_PATH" \
           -parse-as-library \
@@ -45,10 +44,10 @@ jobs:
           $SWIFT_FILES \
           -o Payload/JailbreakDetector.app/JailbreakDetector
           
-        # 바이너리 파일에 실행 권한 부여
+        # 6. 바이너리 파일에 실행 권한 부여
         chmod +x Payload/JailbreakDetector.app/JailbreakDetector
           
-        # 필수 Info.plist 생성 (앱 아이콘 설정 CFBundleIcons 추가)
+        # 7. 필수 Info.plist 생성 (앱 아이콘 설정 포함)
         cat << 'EOF' > Payload/JailbreakDetector.app/Info.plist
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -89,7 +88,7 @@ jobs:
         </plist>
         EOF
         
-        # IPA 파일로 압축
+        # 8. IPA 파일로 압축
         zip -r JailbreakDetector.ipa Payload
 
     - name: 완성된 IPA 업로드
