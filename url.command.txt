@@ -1,0 +1,71 @@
+https://www.osamsung.com/kr/
+
+https://github.com/topjohnwu/magisk
+
+https://samfw.com/
+
+https://iosref.com/ios
+https://appledb.dev/firmware/iOS.html
+https://www.reddit.com/r/jailbreak/wiki/escapeplan/guides/jailbreakcharts/
+https://canijailbreak.com/
+
+https://ios.cfw.guide/installing-trollstore/
+https://github.com/Roothide/Dopamine-roothide/releases
+
+https://ghidra-sre.org/ 
+https://www.oracle.com/java/technologies/downloads/ 
+https://www.python.org/downloads/windows/
+
+pip install frida==16.1.4 frida-tools==12.3.0
+
+https://www.3u.com/productsWin
+
+https://github.com/prateek147/dvia-v2
+
+/var/containers/Bundle/Application
+/private/var/mobile/Containers/Data/Application
+
+pip install objection
+frida-ps –Uai
+objection -n com.highaltitudehacks.DVIAswiftv2 start
+
+ios keychain dump --json dvia.json
+
+https://github.com/ansehd1123/jailbreak-detection
+
+frida-ps –Uai | findstr jail
+frida -U -f [앱 식별자] -l exit_bypass.js
+frida -U -f com.security.jailbreakdetector -l exit_bypass.js
+
+https://github.com/ansehd1123/jailbreak-detection/blob/main/exit_bypass.js
+
+https://developer.android.com/studio?hl=ko
+
+Enable-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform -All
+
+%USERPROFILE%\AppData\Local\Android\Sdk\platform-tools
+https://developer.android.com/tools/releases/platform-tools?hl=ko
+
+https://github.com/newbit1/rootAVD
+https://github.com/frida/frida/releases?page=15#release-16.1.4
+
+chcp 437
+rootAVD.bat ListAllAVDs
+
+rootAVD.bat system-images\android-29\google_apis_playstore\x86_64\ramdisk.img
+
+adb shell – su
+
+adb devices
+adb connect [device]
+adb shell getprop ro.product.cpu.abi
+adb push frida-server /data/local/tmp/frida-server
+adb shell chmod 755 /data/local/tmp/frida-server
+adb shell su -c “/data/local/tmp/frida-server &”
+frida-ps -U | findstr frida
+
+https://github.com/OWASP/mastg/tree/master/Crackmes/Android/Level_01
+https://github.com/skylot/jadx/releases
+
+adb shell "pm list packages -f | grep uncrackabl" 
+adb pull [경로] [생성할 파일 이름]
